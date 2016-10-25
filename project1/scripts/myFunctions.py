@@ -102,30 +102,22 @@ def stochastic_gradient_descent(
 
 def least_squares(y, tx):
     """calculate the least squares solution."""
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # least squares: TODO
-    # returns mse, and optimal weights
-    # ***************************************************
-    w_star = np.linalg.inv(tx.T.dot(tx)).dot(tx.T).dot(y)
+
+    w_star = np.linalg.solve(tx.T.dot(tx),tx.T.dot(y))
     loss = compute_loss(y, tx, w_star)
-    
-    #print("Least Squares: loss={l}, w0={w0}, w1={w1}".format(l=loss, w0=w_star[0], w1=w_star[1]))
+
     return loss, w_star
 
-def build_poly(x, degree):
+def build_poly(tX, degree):
     """polynomial basis functions for input data x, for j=0 up to j=degree."""
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # polynomial basis function: TODO
     # this function should return the matrix formed
     # by applying the polynomial basis to the input data
-    # ***************************************************
-    tx = np.zeros((x.shape[0],degree+1))
-    for i in range(degree+1):
-        tx[:,i] = x**i
+    poly = np.zeros((tX.shape[0],1+(tX.shape[1]-1)*degree))
+    poly[:,0] = np.ones((tX.shape[0],))
+    for p in np.arange(1,degree+1):
+        poly[:,1+(p-1)*(tX.shape[1]-1):1+p*(tX.shape[1]-1)] = tX[:,1:tX.shape[1]]**p
     
-    return tx
+    return poly
 
 def split_data(x, y, ratio, seed=1):
     """split the dataset based on the split ratio."""
@@ -151,12 +143,8 @@ def split_data(x, y, ratio, seed=1):
 
 def ridge_regression(y, tx, lamb):
     """implement ridge regression."""
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # ridge regression: TODO
-    # ***************************************************
-    N,D = tx.shape
-    w = np.linalg.inv(tx.T.dot(tx) + lamb*np.ones(D)).dot(tx.T.dot(y))
+    
+    w = np.linalg.solve(tx.T.dot(tx) + 2*tx.shape[0]*lamb*np.ones(tx.shape[1]), tx.T.dot(y))
     return w
 
 
