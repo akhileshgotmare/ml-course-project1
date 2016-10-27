@@ -19,7 +19,7 @@ def compute_loss(y, tx, w):
     """
     e = y - tx.dot(w)
     # return calculate_mse(e)
-    return calculate_rmse(e)
+    return calculate_mse(e)
     # return calculate_mae(e)
 
 def grid_search(y, tx, w0, w1):
@@ -103,10 +103,10 @@ def stochastic_gradient_descent(
 def least_squares(y, tx):
     """calculate the least squares solution."""
 
-    w_star = np.linalg.solve(tx.T.dot(tx),tx.T.dot(y))
-    loss = compute_loss(y, tx, w_star)
+    w = np.linalg.solve(tx.T.dot(tx),tx.T.dot(y))
+    #loss = compute_loss(y, tx, w_star)
 
-    return loss, w_star
+    return w
 
 def build_poly(tX, degree):
     """polynomial basis functions for input data x, for j=0 up to j=degree."""
@@ -144,7 +144,7 @@ def split_data(x, y, ratio, seed=1):
 def ridge_regression(y, tx, lamb):
     """implement ridge regression."""
     
-    w = np.linalg.solve(tx.T.dot(tx) + 2*tx.shape[0]*lamb*np.ones(tx.shape[1]), tx.T.dot(y))
+    w = np.linalg.solve(tx.T.dot(tx) + 2*tx.shape[0]*lamb*np.eye(tx.shape[1]), tx.T.dot(y))
     return w
 
 
