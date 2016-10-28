@@ -18,9 +18,27 @@ def compute_loss(y, tx, w):
     You can calculate the loss using mse, rmse or mae.
     """
     e = y - tx.dot(w)
-    # return calculate_mse(e)
-    return calculate_mse(e)
-    # return calculate_mae(e)
+    #return calculate_rmse(e)
+    #return calculate_mse(e)
+    return calculate_mae(e)
+
+def predict_labels(weights, data):
+    """Generates class predictions given weights, and a test data matrix"""
+    y_pred = np.dot(data, weights)
+    y_pred[np.where(y_pred <= 0)] = -1
+    y_pred[np.where(y_pred > 0)] = 1
+    
+    return y_pred
+
+def compute_classerror(w, tx_tr, tx_te, y_tr, y_te):
+    y_tr_pred = predict_labels(w, tx_tr)
+    loss_tr = len(np.nonzero(y_tr_pred-y_tr)[0])/len(y_tr)
+    
+    y_te_pred = predict_labels(w, tx_te)
+    loss_te = len(np.nonzero(y_te_pred-y_te)[0])/len(y_te)
+    
+    return loss_tr, loss_te
+
 
 def grid_search(y, tx, w0, w1):
     """Algorithm for grid search."""
@@ -158,35 +176,78 @@ def build_k_indices(y, k_fold, seed):
                  for k in range(k_fold)]
     return np.array(k_indices)
 
-def cross_validation(y, x, k_indices, k, lambda_, degree):
-    """return the loss of ridge regression."""
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # get k'th subgroup in test, others in train: TODO
-    # ***************************************************
-    x_tr = x[np.delete(k_indices, (k), axis=0).flatten()]
-    y_tr = y[np.delete(k_indices, (k), axis=0).flatten()]
-    x_te = x[k_indices[k]]
-    y_te = y[k_indices[k]]
+def sigmoid(t):
+    """apply sigmoid function on t."""
+
+    return np.exp(t)/(1+np.exp(t))
+
+def calculate_logic_loss(y, tx, w):
+    """compute the cost by negative log likelihood."""
     
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # form data with polynomial degree: TODO
-    # ***************************************************
-    tx_tr = my.build_poly(x_tr, degree)
-    tx_te = my.build_poly(x_te, degree)
+    loss = np.sum(np.log(1 + np.exp(tx.dot(w))) - y*tx.dot(w))
+    return loss
+
+def calculate_logic_gradient(y, tx, w):
+    """compute the gradient of loss."""
+    g = tx.T.dot(sigmoid(tx.dot(w))-y)
+    return g
+
+def learning_by_gradient_descent(y, tx, w, gamma):
+    """
+    Do one step of gradient descen using logistic regression.
+    Return the loss and the updated w.
+    """
+    loss = calculate_logic_loss(y, tx, w)
+    g = calculate_logic_gradient(y, tx, w)
+
+    w -= gamma*g
     
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # ridge regression: TODO
-    # ***************************************************
-    w = my.ridge_regression(y_tr, tx_tr, lambda_)
+    return loss, w
+
+def calculate_logic_hessian(y, tx, w):
+    """return the hessian of the loss function."""
+
+    S = np.eye(len(y))*sigmoid(tx.dot(w))*(1-sigmoid(tx.dot(w)))
+    H = tx.T.dot(S.dot(tx))
+    return H
+
+def logistic_regression(y, tx, w):
+    """return the loss, gradient, and hessian."""
+
+    loss = calculate_logic_loss(y, tx, w)
+    g = calculate_logic_gradient(y, tx, w)
+    H = calculate_logic_hessian(y, tx, w)
     
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # calculate the loss for train and test data: TODO
-    # ***************************************************
-    loss_tr = my.compute_loss(y_tr, tx_tr, w)
-    loss_te = my.compute_loss(y_te, tx_te, w)
+    return loss, g, H
+
+def learning_by_newton_method(y, tx, w, gamma):
+    """
+    Do one step on Newton's method.
+    return the loss and updated w.
+    """
+
+    loss, g, H = logistic_regression(y, tx, w)
+    w -= gamma*np.linalg.solve(H,g)
     
-    return loss_tr, loss_te
+    return loss, w
+
+def penalized_logistic_regression(y, tx, w, lambda_):
+    """return the loss, gradient, and hessian."""
+    loss = np.sum(np.log(1 + np.exp(tx.dot(w))) - y*tx.dot(w)) + lambda_*w.T.dot(w)
+    g = tx.T.dot(sigmoid(tx.dot(w))-y) + 2*lambda_*w
+    
+    S = np.eye(len(y))*sigmoid(tx.dot(w))*(1-sigmoid(tx.dot(w))) 
+    H = tx.T.dot(S.dot(tx)) + np.eye(len(w))*2*lambda_
+    
+    return loss, g, H
+
+def learning_by_penalized_gradient(y, tx, w, gamma, lambda_):
+    """
+    Do one step of gradient descent, using the penalized logistic regression.
+    Return the loss and updated w.
+    """
+    loss, g, H = penalized_logistic_regression(y, tx, w, lambda_)
+    # update w
+    w -= gamma*np.linalg.solve(H,g)
+    
+    return loss, w
