@@ -1,6 +1,6 @@
 import numpy as np
 
-
+# Loss functions
 def calculate_mse(e):
     """Calculate the mse for vector e."""
     return 1/2*np.mean(e**2)
@@ -39,26 +39,13 @@ def compute_classerror(w, tx_tr, tx_te, y_tr, y_te):
     
     return loss_tr, loss_te
 
-
-def grid_search(y, tx, w0, w1):
-    """Algorithm for grid search."""
-    losses = np.zeros((len(w0), len(w1)))
-    # ***************************************************
-    for i in range(w0.shape[0]):
-        for j in range(w1.shape[0]):
-            w = np.array([w0[i], w1[j]])
-            losses[i][j]=compute_loss(y, tx, w)
-    # ***************************************************
-    return losses
-
 def compute_gradient(y, tx, w):
     """Compute the gradient."""
-    # ***************************************************
     N, D = tx.shape
     loss = compute_loss(y, tx, w)
     e = y - tx.dot(w)
     g = -tx.T.dot(e)/N
-    # ***************************************************
+
     return g, loss
 
 def gradient_descent(y, tx, initial_w, max_iters, gamma): 
@@ -76,18 +63,12 @@ def gradient_descent(y, tx, initial_w, max_iters, gamma):
         # store w and loss
         ws.append(np.copy(w))
         losses.append(loss)
-        #print("Gradient Descent({bi}/{ti}): loss={l}, w0={w0}, w1={w1}".format(bi=n_iter, ti=max_iters - 1, l=loss, w0=w[0], w1=w[1]))
-        
         # TODO : implement stop criteria
-        
-    print("Gradient Descent : loss={l}, w0={w0}, w1={w1}".format(l=loss, w0=w[0], w1=w[1]))
+
     return losses, ws
 
 def compute_stoch_gradient(y, tx, w):
     """Compute a stochastic gradient for batch data."""
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # TODO: implement stochastic gradient computation.It's same as the gradient descent.
     N, D = tx.shape
     e = y - tx.dot(w)
     g = -tx.T.dot(e)/N
@@ -95,12 +76,10 @@ def compute_stoch_gradient(y, tx, w):
     return g
 
 
-def stochastic_gradient_descent(
-        y, tx, initial_w, batch_size, max_epochs, gamma):
+def stochastic_gradient_descent(y, tx, initial_w, batch_size, max_epochs, gamma):
     """Stochastic gradient descent algorithm."""
-    # ***************************************************
-    # INSERT YOUR CODE HERE
-    # TODO: implement stochastic gradient descent.
+
+    threshold = 1e-7
     ws = [initial_w]
     losses = []
     w = initial_w
@@ -112,8 +91,6 @@ def stochastic_gradient_descent(
         # store w and loss
         ws.append(np.copy(w))
         losses.append(loss)
-        print("Gradient Descent: loss={l}, w0={w0}, w1={w1}".format(
-              l=loss, w0=w[0], w1=w[1]))
 
     return losses, ws
 
@@ -176,15 +153,60 @@ def build_k_indices(y, k_fold, seed):
                  for k in range(k_fold)]
     return np.array(k_indices)
 
+def batch_iter(y, tx, batch_size, num_batches=None, shuffle=True):
+    """
+    Generate a minibatch iterator for a dataset.
+    Takes as input two iterables (here the output desired values 'y' and the input data 'tx')
+    Outputs an iterator which gives mini-batches of `batch_size` matching elements from `y` and `tx`.
+    Data can be randomly shuffled to avoid ordering in the original data messing with the randomness of the minibatches.
+    Example of use :
+    for minibatch_y, minibatch_tx in batch_iter(y, tx, 32):
+        <DO-SOMETHING>
+    """
+    data_size = len(y)
+    num_batches_max = int(np.ceil(data_size/batch_size))
+    if num_batches is None:
+        num_batches = num_batches_max
+    else:
+        num_batches = min(num_batches, num_batches_max)
+
+    if shuffle:
+        shuffle_indices = np.random.permutation(np.arange(data_size))
+        shuffled_y = y[shuffle_indices]
+        shuffled_tx = tx[shuffle_indices]
+    else:
+        shuffled_y = y
+        shuffled_tx = tx
+    for batch_num in range(num_batches):
+        start_index = batch_num * batch_size
+        end_index = min((batch_num + 1) * batch_size, data_size)
+        if start_index != end_index:
+            yield shuffled_y[start_index:end_index], shuffled_tx[start_index:end_index]
+
+def predict_logic_labels(weights, data):
+    """Generates class predictions given weights, and a test data matrix"""
+    y_pred = np.dot(data, weights)
+    y_pred[np.where(y_pred <= 0.5)] = 0
+    y_pred[np.where(y_pred > 0.5)] = 1
+    return y_pred
+            
+def compute_logic_classerror(w, tx_tr, tx_te, y_tr, y_te):
+    y_tr_pred = predict_logic_labels(w, tx_tr)
+    loss_tr = len(np.nonzero(y_tr_pred-y_tr)[0])/len(y_tr)
+    
+    y_te_pred = predict_logic_labels(w, tx_te)
+    loss_te = len(np.nonzero(y_te_pred-y_te)[0])/len(y_te)
+    
+    return loss_tr, loss_te
+            
 def sigmoid(t):
     """apply sigmoid function on t."""
-
     return np.exp(t)/(1+np.exp(t))
 
 def calculate_logic_loss(y, tx, w):
     """compute the cost by negative log likelihood."""
-    
-    loss = np.sum(np.log(1 + np.exp(tx.dot(w))) - y*tx.dot(w))
+    beta = tx.dot(w)
+    loss = np.sum(np.log(1 + np.exp(beta)) - y*beta)
     return loss
 
 def calculate_logic_gradient(y, tx, w):
@@ -204,10 +226,28 @@ def learning_by_gradient_descent(y, tx, w, gamma):
     
     return loss, w
 
+def learning_by_stochastic_gradient_descent(
+        y, tx, initial_w, batch_size, max_epochs, gamma):
+    """Stochastic gradient descent algorithm."""
+
+    ws = [initial_w]
+    losses = []
+    w = initial_w
+    for minibatch_y, minibatch_tx in batch_iter(y, tx, batch_size, max_epochs):
+        g= calculate_logic_gradient(minibatch_y, minibatch_tx, w)
+        w -= gamma*g
+        loss = calculate_logic_loss(y, tx, w)
+        
+        # store w and loss
+        ws.append(np.copy(w))
+        losses.append(loss)
+
+    return losses, ws
+
 def calculate_logic_hessian(y, tx, w):
     """return the hessian of the loss function."""
-
-    S = np.eye(len(y))*sigmoid(tx.dot(w))*(1-sigmoid(tx.dot(w)))
+    beta = tx.dot(w)
+    S = np.eye(len(y))*sigmoid(beta)*(1-sigmoid(beta))
     H = tx.T.dot(S.dot(tx))
     return H
 
@@ -231,12 +271,30 @@ def learning_by_newton_method(y, tx, w, gamma):
     
     return loss, w
 
+def learning_by_stochastic_newton_method(
+        y, tx, initial_w, batch_size, max_epochs, gamma):
+    """Stochastic gradient descent algorithm."""
+
+    ws = [initial_w]
+    losses = []
+    w = initial_w
+    for minibatch_y, minibatch_tx in batch_iter(y, tx, batch_size, max_epochs):
+        loss, w = learning_by_newton_method(minibatch_y, minibatch_tx, w, gamma)
+        loss = calculate_logic_loss(y, tx, w)
+        #print("Gradient Descent: loss={l}".format(l=loss))
+
+        # store w and loss
+        ws.append(np.copy(w))
+        losses.append(loss)
+
+    return losses, ws
+
 def penalized_logistic_regression(y, tx, w, lambda_):
     """return the loss, gradient, and hessian."""
-    loss = np.sum(np.log(1 + np.exp(tx.dot(w))) - y*tx.dot(w)) + lambda_*w.T.dot(w)
-    g = tx.T.dot(sigmoid(tx.dot(w))-y) + 2*lambda_*w
-    
-    S = np.eye(len(y))*sigmoid(tx.dot(w))*(1-sigmoid(tx.dot(w))) 
+    beta = tx.dot(w)
+    loss = np.sum(np.log(1 + np.exp(beta)) - y*beta) + lambda_*w.T.dot(w)
+    g = tx.T.dot(sigmoid(beta)-y) + 2*lambda_*w
+    S = np.eye(len(y))*sigmoid(beta)*(1-sigmoid(beta)) 
     H = tx.T.dot(S.dot(tx)) + np.eye(len(w))*2*lambda_
     
     return loss, g, H
@@ -251,3 +309,54 @@ def learning_by_penalized_gradient(y, tx, w, gamma, lambda_):
     w -= gamma*np.linalg.solve(H,g)
     
     return loss, w
+
+def learning_by_stochastic_penalized_newton_method(y, tx, initial_w, batch_size, max_epochs, gamma, lambda_):
+    """Stochastic gradient descent algorithm."""
+    ws = []
+    losses = []
+    w = initial_w
+    for minibatch_y, minibatch_tx in batch_iter(y, tx, batch_size, max_epochs):
+        loss, w = learning_by_penalized_gradient(minibatch_y, minibatch_tx, w, gamma, lambda_)
+        loss = calculate_logic_loss(y, tx, w)
+        #print("Gradient Descent: loss={l}".format(l=loss))
+
+        # store w and loss
+        ws.append(np.copy(w))
+        losses.append(loss)
+
+    return losses, ws
+
+
+def penalized_logistic_regression2(y, tx, w, lambda_):
+    """return the loss, gradient, and hessian."""
+    beta = tx.dot(w)
+    loss = np.sum(np.log(1 + np.exp(beta)) - y*beta) + lambda_*w.T.dot(w)
+    g = tx.T.dot(sigmoid(beta)-y) + 2*lambda_*w
+    
+    return loss, g
+
+def learning_by_penalized_gradient2(y, tx, w, gamma, lambda_):
+    """
+    Do one step of gradient descent, using the penalized logistic regression.
+    Return the loss and updated w.
+    """
+    loss, g = penalized_logistic_regression2(y, tx, w, lambda_)
+    # update w
+    w -= gamma*g
+    
+    return loss, w
+
+def learning_by_stochastic_penalized_gradient_descent(y, tx, initial_w, batch_size, max_epochs, gamma, lambda_):
+    """Stochastic gradient descent algorithm."""
+    ws = []
+    losses = []
+    w = initial_w
+    for minibatch_y, minibatch_tx in batch_iter(y, tx, batch_size, max_epochs):
+        loss, w = learning_by_penalized_gradient2(minibatch_y, minibatch_tx, w, gamma, lambda_)
+        loss = calculate_logic_loss(y, tx, w)
+
+        # store w and loss
+        ws.append(np.copy(w))
+        losses.append(loss)
+
+    return losses, ws
